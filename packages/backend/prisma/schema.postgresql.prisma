@@ -1,0 +1,159 @@
+// Prisma schema para PostgreSQL
+// Use este arquivo quando migrar para PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums nativos do PostgreSQL
+enum UserRole {
+  ADMIN
+  ATTENDANT
+  VIEWER
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+  CANCELLED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      UserRole @default(ATTENDANT)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignedTickets Ticket[] @relation("AssignedTickets")
+
+  @@map("users")
+}
+
+model Client {
+  id        String   @id @default(uuid())
+  name      String
+  email     String?
+  phone     String?
+  document  String?  @unique // CPF/CNPJ
+  address   String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tickets Ticket[]
+
+  @@map("clients")
+}
+
+model Category {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  color       String?  // Hex color for UI
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tickets Ticket[]
+  slas    SLA[]
+
+  @@map("categories")
+}
+
+model SLA {
+  id               String   @id @default(uuid())
+  name             String
+  categoryId       String?
+  responseTime     Int      // Em minutos
+  resolutionTime   Int      // Em minutos
+  priority         Priority @default(MEDIUM)
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  tickets  Ticket[]
+
+  @@map("slas")
+}
+
+model Ticket {
+  id               String   @id @default(uuid())
+  title            String
+  description      String
+  status           TicketStatus @default(OPEN)
+  priority         Priority @default(MEDIUM)
+
+  clientId         String
+  categoryId       String
+  slaId            String?
+  assignedToId     String?
+
+  telegramUserId   String?  // ID do usuário no Telegram
+  telegramChatId   String?  // ID do chat no Telegram
+
+  responseDeadline DateTime?      // Prazo para primeira resposta
+  resolutionDeadline DateTime?    // Prazo para resolução
+
+  respondedAt      DateTime?      // Quando foi respondido
+  resolvedAt       DateTime?      // Quando foi resolvido
+  closedAt         DateTime?      // Quando foi fechado
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  client     Client    @relation(fields: [clientId], references: [id])
+  category   Category  @relation(fields: [categoryId], references: [id])
+  sla        SLA?      @relation(fields: [slaId], references: [id], onDelete: SetNull)
+  assignedTo User?     @relation("AssignedTickets", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  comments   TicketComment[]
+  history    TicketHistory[]
+
+  @@map("tickets")
+}
+
+model TicketComment {
+  id        String   @id @default(uuid())
+  ticketId  String
+  userId    String?
+  content   String
+  isInternal Boolean @default(false) // Comentário interno (não visível ao cliente)
+  createdAt DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@map("ticket_comments")
+}
+
+model TicketHistory {
+  id        String   @id @default(uuid())
+  ticketId  String
+  userId    String?
+  action    String   // Ex: "Status alterado", "Atribuído a", "Prioridade alterada"
+  oldValue  String?
+  newValue  String?
+  createdAt DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@map("ticket_history")
+}

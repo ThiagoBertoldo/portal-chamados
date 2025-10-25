@@ -1,0 +1,142 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// SQLite não suporta enums nativos
+// Valores possíveis para role: ADMIN, ATTENDANT, VIEWER
+// Valores possíveis para status: OPEN, IN_PROGRESS, RESOLVED, CLOSED, CANCELLED
+// Valores possíveis para priority: LOW, MEDIUM, HIGH, URGENT
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   @default("ATTENDANT") // ADMIN, ATTENDANT, VIEWER
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignedTickets Ticket[] @relation("AssignedTickets")
+
+  @@map("users")
+}
+
+model Client {
+  id        String   @id @default(uuid())
+  name      String
+  email     String?
+  phone     String?
+  document  String?  @unique // CPF/CNPJ
+  address   String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tickets Ticket[]
+
+  @@map("clients")
+}
+
+model Category {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  color       String?  // Hex color for UI
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tickets Ticket[]
+  slas    SLA[]
+
+  @@map("categories")
+}
+
+model SLA {
+  id               String   @id @default(uuid())
+  name             String
+  categoryId       String?
+  responseTime     Int      // Em minutos
+  resolutionTime   Int      // Em minutos
+  priority         String   @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  tickets  Ticket[]
+
+  @@map("slas")
+}
+
+model Ticket {
+  id               String   @id @default(uuid())
+  title            String
+  description      String
+  status           String   @default("OPEN") // OPEN, IN_PROGRESS, RESOLVED, CLOSED, CANCELLED
+  priority         String   @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
+
+  clientId         String
+  categoryId       String
+  slaId            String?
+  assignedToId     String?
+
+  telegramUserId   String?  // ID do usuário no Telegram
+  telegramChatId   String?  // ID do chat no Telegram
+
+  responseDeadline DateTime?      // Prazo para primeira resposta
+  resolutionDeadline DateTime?    // Prazo para resolução
+
+  respondedAt      DateTime?      // Quando foi respondido
+  resolvedAt       DateTime?      // Quando foi resolvido
+  closedAt         DateTime?      // Quando foi fechado
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  client     Client    @relation(fields: [clientId], references: [id])
+  category   Category  @relation(fields: [categoryId], references: [id])
+  sla        SLA?      @relation(fields: [slaId], references: [id], onDelete: SetNull)
+  assignedTo User?     @relation("AssignedTickets", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  comments   TicketComment[]
+  history    TicketHistory[]
+
+  @@map("tickets")
+}
+
+model TicketComment {
+  id        String   @id @default(uuid())
+  ticketId  String
+  userId    String?
+  content   String
+  isInternal Boolean @default(false) // Comentário interno (não visível ao cliente)
+  createdAt DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@map("ticket_comments")
+}
+
+model TicketHistory {
+  id        String   @id @default(uuid())
+  ticketId  String
+  userId    String?
+  action    String   // Ex: "Status alterado", "Atribuído a", "Prioridade alterada"
+  oldValue  String?
+  newValue  String?
+  createdAt DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@map("ticket_history")
+}

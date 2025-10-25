@@ -5,7 +5,7 @@ Sistema completo de gerenciamento de chamados integrado com Bot Telegram.
 ## 🚀 Funcionalidades
 
 ### Core
-- 📱 Bot Telegram para abertura de chamados
+- 📱 Bot Telegram para abertura de chamados - teste
 - 🎫 Gestão completa de chamados
 - 👥 Cadastro de clientes
 - 👨‍💼 Cadastro de usuários/atendentes
